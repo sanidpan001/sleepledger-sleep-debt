@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SleepLedger — Sleep Debt Calculator: Track Your Debt & Build a Recovery Plan</title>
+<meta name="description" content="SleepLedger is a free sleep debt calculator: log 14 nights of sleep, see your cumulative debt graded by severity, get a dated recovery plan, a nap schedule and a weekend lie-in guardrail.">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#0A0E1F; --panel:#121834; --line:#232B52; --ind:#818CF8; --amb:#FCD34D; --txt:#E8EBFF; --mut:#9AA3C7; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Sora', system-ui, sans-serif; background: var(--ink); color: var(--txt); }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .ledger-card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 18px 44px rgba(8,12,32,.55); }
+  .ruled { background-image: repeating-linear-gradient(180deg, transparent 0 43px, rgba(129,140,248,.14) 43px 44px); }
+  .ledger-row { border-bottom: 1px dashed rgba(129,140,248,.28); }
+  .ledger-row:last-child { border-bottom: none; }
+  .seal { transform: rotate(-8deg); border: 3px double var(--amb); color: var(--amb); border-radius: 12px; letter-spacing: .14em; }
+  .stamp-mild { color:#A7F3D0; border-color:#A7F3D0; }
+  .stamp-moderate { color:#FCD34D; border-color:#FCD34D; }
+  .stamp-heavy { color:#FCA5A5; border-color:#FCA5A5; }
+  .stamp-severe { color:#F87171; border-color:#F87171; }
+  .stamp-rested { color:#A7F3D0; border-color:#A7F3D0; }
+  .field { background:#0C1230; border:1px solid var(--line); border-radius:10px; color:var(--txt); }
+  .field:focus { outline:2px solid var(--ind); border-color: var(--ind); }
+  input[type="date"], input[type="time"] { color-scheme: dark; }
+  .btn-indigo { background: var(--ind); color:#0A0E1F; font-weight:700; border-radius:12px; transition: transform .12s ease, filter .12s ease; }
+  .btn-indigo:hover { transform: translateY(-2px); filter: brightness(1.08); }
+  .btn-ghost { border:1px solid var(--line); border-radius:12px; color:var(--txt); transition: border-color .12s ease; }
+  .btn-ghost:hover { border-color: var(--ind); }
+  .delta-neg { color:#FCA5A5; } .delta-pos { color:#A7F3D0; }
+  .plan-line { position: relative; }
+  .plan-line::before { content:""; position:absolute; left:11px; top:34px; bottom:-6px; width:2px; background: linear-gradient(180deg, var(--ind), transparent); }
+  .plan-line:last-child::before { display:none; }
+  details.faq { border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+  details.faq summary { cursor:pointer; }
+  details.faq[open] { border-color: var(--ind); }
+  .no-print { }
+  @media print { .no-print { display:none; } }
+</style>
+</head>
+<body id="top">
+
+<!-- ============ STICKY HEADER ============ -->
+<header class="sticky top-0 z-50" style="background:rgba(10,14,31,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-2.5">
+      <svg width="32" height="32" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+        <path d="M28 23.5A12 12 0 1 1 16.5 5.8 9.5 9.5 0 0 0 28 23.5z" fill="#818CF8" stroke="#FCD34D" stroke-width="2.4"/>
+        <path d="M30 8l1.2 2.6L34 11.8l-2.8 1.2L30 15.6l-1.2-2.6-2.8-1.2 2.8-1.2L30 8z" fill="#FCD34D"/>
+        <circle cx="33" cy="22" r="1.6" fill="#FCD34D"/>
+      </svg>
+      <span class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Sleep<span style="color:var(--ind)">Ledger</span></span>
+    </a>
+    <nav class="flex items-center gap-3 sm:gap-6">
+      <a href="#top" class="text-sm sm:text-base font-semibold text-slate-300 hover:text-white">Home</a>
+      <a href="https://fixoraa.tech" class="text-sm sm:text-base font-semibold px-3 py-1.5 rounded-full" style="border:1px solid var(--line);color:var(--txt)">More Tools</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ TOP AD (verbatim) ============ -->
+<div class="no-print mx-auto max-w-6xl px-4 sm:px-6 pt-4" role="complementary" aria-label="Advertisement">
+  <div class="mx-auto text-center" style="max-width:728px">
+    <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+    <div class="flex justify-center overflow-hidden">
+      <div class="origin-top scale-[0.44] sm:scale-100 shrink-0">
+        <script>
+          atOptions = { 'key' : '4e68ac77881c17fe128a46565d9a4e8c', 'format' : 'iframe', 'height' : 90, 'width' : 728, 'params' : {} };
+        </script>
+        <script src="https://www.highrevenueformat.com/4e68ac77881c17fe128a46565d9a4e8c/invoke.js"></script>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HERO ============ -->
+<main class="max-w-6xl mx-auto px-4 sm:px-6">
+  <div class="mt-6 mb-8 text-center relative overflow-hidden rounded-3xl px-6 py-10 sm:py-14" style="background:radial-gradient(900px 320px at 50% -10%, rgba(129,140,248,.28), transparent), var(--panel); border:1px solid var(--line)">
+    <div class="absolute inset-0 pointer-events-none opacity-40" style="background-image:radial-gradient(2px 2px at 12% 30%, #FCD34D 50%, transparent 51%),radial-gradient(1.5px 1.5px at 78% 18%, #818CF8 50%, transparent 51%),radial-gradient(2px 2px at 88% 62%, #FCD34D 50%, transparent 51%),radial-gradient(1.5px 1.5px at 30% 74%, #818CF8 50%, transparent 51%)"></div>
+    <h1 class="relative text-4xl sm:text-6xl font-extrabold tracking-tight text-white">Your sleep, <span style="color:var(--ind)">balanced</span><br>like a <span style="color:var(--amb)">ledger</span>.</h1>
+    <p class="relative mt-4 text-lg sm:text-xl max-w-2xl mx-auto" style="color:var(--mut)">Log up to 14 nights, see exactly how much sleep you owe yourself, and get a dated, circadian-safe plan to pay it back.</p>
+    <div class="relative mt-6 flex flex-wrap items-center justify-center gap-3">
+      <span class="inline-flex items-center gap-2 font-semibold px-5 py-2.5 rounded-full text-sm tracking-wide" style="background:rgba(252,211,77,.12);border:1px solid var(--amb);color:var(--amb)">✦ Unlimited Free Usage</span>
+      <span class="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-full" style="border:1px solid var(--line);color:var(--mut)">No account needed · No paywall · No watermark</span>
+    </div>
+  </div>
+
+  <!-- ============ TOOL: THE LEDGER ============ -->
+  <section class="ledger-card ruled p-5 sm:p-8" aria-label="Sleep debt calculator tool">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-white">📒 The 14-Night Ledger</h2>
+      <span class="mono text-xs px-3 py-1.5 rounded-full" style="border:1px solid var(--line);color:var(--mut)">BOOK OF SLEEP · VOL. 1</span>
+    </div>
+
+    <div class="grid sm:grid-cols-3 gap-4 mb-6">
+      <label class="block">
+        <span class="block text-sm font-semibold mb-1.5" style="color:var(--mut)">My nightly sleep need (hours)</span>
+        <input id="sl-need" type="number" min="4" max="12" step="0.25" value="8" class="field mono w-full px-4 py-2.5 text-lg">
+      </label>
+      <div class="flex items-end gap-2">
+        <button id="sl-analyze" class="btn-indigo px-6 py-3 w-full sm:w-auto">⚖️ Balance the books</button>
+      </div>
+      <div class="flex items-end gap-2">
+        <button id="sl-sample" class="btn-ghost px-4 py-3 text-sm w-full sm:w-auto">Try sample data</button>
+        <button id="sl-clear" class="btn-ghost px-4 py-3 text-sm w-full sm:w-auto">Clear</button>
+      </div>
+    </div>
+
+    <div id="sl-log-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-x-8 gap-y-0 mb-2"></div>
+    <p class="text-xs mt-2 mb-6" style="color:var(--mut)">Log hours slept each night (e.g. 7.5). Rows auto-date to the last 14 days. Entries save in this browser automatically.</p>
+
+    <div id="sl-results" class="hidden">
+      <div class="grid sm:grid-cols-3 gap-4 mb-6">
+        <div class="rounded-2xl p-5 text-center" style="background:#0C1230;border:1px solid var(--line)">
+          <div class="text-xs uppercase tracking-[0.18em] mb-1" style="color:var(--mut)">Total debt</div>
+          <div id="sl-debt" class="mono text-4xl font-bold" style="color:var(--amb)">0h 00m</div>
+        </div>
+        <div class="rounded-2xl p-5 text-center flex flex-col items-center justify-center" style="background:#0C1230;border:1px solid var(--line)">
+          <div class="text-xs uppercase tracking-[0.18em] mb-2" style="color:var(--mut)">Severity grade</div>
+          <div id="sl-grade" class="seal stamp-rested mono text-lg font-bold px-4 py-1.5 uppercase">Rested</div>
+        </div>
+        <div class="rounded-2xl p-5 text-center" style="background:#0C1230;border:1px solid var(--line)">
+          <div class="text-xs uppercase tracking-[0.18em] mb-1" style="color:var(--mut)">14-night average</div>
+          <div id="sl-avg" class="mono text-4xl font-bold" style="color:var(--ind)">0h 00m</div>
+          <div id="sl-nights" class="text-xs mt-1" style="color:var(--mut)"></div>
+        </div>
+      </div>
+      <p id="sl-grade-advice" class="text-sm mb-6 rounded-xl px-4 py-3" style="background:rgba(129,140,248,.08);border:1px solid var(--line);color:var(--txt)"></p>
+
+      <h3 class="text-xl font-bold text-white mb-1">Ledger timeline</h3>
+      <p class="text-xs mb-3" style="color:var(--mut)">Debit = sleep owed · Credit = surplus · Balance never drops below zero.</p>
+      <div class="rounded-xl overflow-hidden mb-2" style="border:1px solid var(--line)">
+        <div class="ledger-row grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] gap-2 px-3 sm:px-4 py-2 text-[11px] uppercase tracking-[0.14em] font-semibold" style="background:#0C1230;color:var(--mut)">
+          <span>Date</span><span class="text-right">Slept</span><span class="text-right hidden sm:block">Need</span><span class="text-right">Δ night</span><span class="text-right">Balance</span>
+        </div>
+        <div id="sl-timeline"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RECOVERY PLAN ============ -->
+  <section class="ledger-card p-5 sm:p-8 mt-6" aria-label="Recovery plan generator">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-white">🗓️ Dated Recovery Plan</h2>
+      <span class="text-xs px-3 py-1.5 rounded-full" style="border:1px solid var(--line);color:var(--mut)">circadian-safe · ≤ +60 min/night</span>
+    </div>
+    <p class="text-sm mb-5 max-w-3xl" style="color:var(--mut)">Enter when repayment starts. SleepLedger spreads your debt into small nightly installments — never a rhythm-wrecking marathon — and stamps each calendar date with exactly how much extra to sleep.</p>
+    <div class="grid sm:grid-cols-3 gap-4 mb-5">
+      <label class="block">
+        <span class="block text-sm font-semibold mb-1.5" style="color:var(--mut)">Plan start date</span>
+        <input id="sl-plan-start" type="date" class="field mono w-full px-4 py-2.5">
+      </label>
+      <label class="block">
+        <span class="block text-sm font-semibold mb-1.5" style="color:var(--mut)">Max extra per night (min)</span>
+        <input id="sl-plan-cap" type="number" min="15" max="120" step="5" value="60" class="field mono w-full px-4 py-2.5">
+      </label>
+      <div class="flex items-end">
+        <button id="sl-plan-btn" class="btn-indigo px-6 py-3 w-full">Generate my plan</button>
+      </div>
+    </div>
+    <div id="sl-plan-out"></div>
+  </section>
+
+  <!-- ============ NAP PLANNER + GUARDRAIL ============ -->
+  <div class="grid lg:grid-cols-2 gap-6 mt-6">
+    <section class="ledger-card p-5 sm:p-8" aria-label="Nap planner">
+      <h2 class="text-2xl font-extrabold text-white mb-2">😴 Nap Planner</h2>
+      <p class="text-sm mb-5" style="color:var(--mut)">The optimal nap window sits 6–8 hours after you wake. Pick your times to get a personalized window and durations.</p>
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <label class="block">
+          <span class="block text-sm font-semibold mb-1.5" style="color:var(--mut)">Wake time</span>
+          <input id="sl-nap-wake" type="time" value="07:00" class="field mono w-full px-4 py-2.5">
+        </label>
+        <label class="block">
+          <span class="block text-sm font-semibold mb-1.5" style="color:var(--mut)">Bedtime</span>
+          <input id="sl-nap-bed" type="time" value="23:00" class="field mono w-full px-4 py-2.5">
+        </label>
+      </div>
+      <button id="sl-nap-btn" class="btn-indigo px-6 py-3 w-full mb-4">Plan my nap</button>
+      <div id="sl-nap-out"></div>
+    </section>
+
+    <section class="ledger-card p-5 sm:p-8" aria-label="Weekend lie-in guardrail">
+      <h2 class="text-2xl font-extrabold text-white mb-2">🛡️ Weekend Lie-in Guardrail</h2>
+      <p class="text-sm mb-5" style="color:var(--mut)">Sleeping in more than <strong style="color:var(--amb)">+60 minutes</strong> past your weekday wake time creates "social jetlag" — a Monday-morning time-zone shift you give yourself. Check yours.</p>
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <label class="block">
+          <span class="block text-sm font-semibold mb-1.5" style="color:var(--mut)">Weekday wake</span>
+          <input id="sl-g-usual" type="time" value="07:00" class="field mono w-full px-4 py-2.5">
+        </label>
+        <label class="block">
+          <span class="block text-sm font-semibold mb-1.5" style="color:var(--mut)">Weekend wake (planned)</span>
+          <input id="sl-g-weekend" type="time" value="08:30" class="field mono w-full px-4 py-2.5">
+        </label>
+      </div>
+      <button id="sl-g-btn" class="btn-indigo px-6 py-3 w-full mb-4">Check my guardrail</button>
+      <div id="sl-g-out"></div>
+    </section>
+  </div>
+</main>
+
+<!-- ============ BOTTOM AD (verbatim) ============ -->
+<div class="no-print mx-auto max-w-6xl px-4 sm:px-6 pb-4 mt-8" role="complementary" aria-label="Advertisement">
+  <div class="mx-auto text-center" style="max-width:728px">
+    <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+    <div class="flex justify-center overflow-hidden">
+      <script async src="https://js.wpadmngr.com/static/adManager.js" data-admpid="464498"></script>
+    </div>
+  </div>
+</div>
+
+<!-- LIB -->
+<script id="v3-sleepledger-sleep-debt-lib">
+/* SleepLedger pure logic — 14-day sleep-debt ledger, dated recovery plan,
+ * nap planner, and weekend lie-in guardrail.
+ * Pure functions only: no document/window access, no DOM, no network.
+ * Time is hours (floats). Dates are ISO "YYYY-MM-DD" strings, handled in UTC.
+ */
+var SleepDebtLogic = (function () {
+  'use strict';
+
+  var DAY_MS = 86400000;
+
+  function num(n, fallback) {
+    var v = Number(n);
+    return (isFinite(v) ? v : fallback);
+  }
+
+  /* ---- input clamps ---- */
+  // Typical adult sleep need: 4..12h window, default 8.
+  function clampNeed(h) {
+    var v = num(h, 8);
+    if (v < 4) v = 4;
+    if (v > 12) v = 12;
+    return Math.round(v * 4) / 4; // quarter-hour resolution
+  }
+
+  // One night of sleep: 0..16h, quarter-hour resolution.
+  function clampHours(h) {
+    var v = num(h, 0);
+    if (v < 0) v = 0;
+    if (v > 16) v = 16;
+    return Math.round(v * 4) / 4;
+  }
+
+  /* ---- date helpers (pure, UTC) ---- */
+  function isIsoDate(s) {
+    return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  }
+
+  function isoDayAdd(iso, n) {
+    if (!isIsoDate(iso)) return null;
+    var d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return null;
+    return new Date(d.getTime() + n * DAY_MS).toISOString().slice(0, 10);
+  }
+
+  function weekdayIndex(iso) { // 0 = Sunday .. 6 = Saturday
+    if (!isIsoDate(iso)) return -1;
+    return new Date(iso + 'T00:00:00Z').getUTCDay();
+  }
+
+  function isWeekend(iso) {
+    var w = weekdayIndex(iso);
+    return w === 0 || w === 6;
+  }
+
+  function parseTimeHHMM(s) { // "07:30" -> minutes since midnight, NaN if bad
+    if (typeof s !== 'string') return NaN;
+    var m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return NaN;
+    var h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+    if (h < 0 || h > 23 || min < 0 || min > 59) return NaN;
+    return h * 60 + min;
+  }
+
+  function fmtTime(minutes) { // 450 -> "07:30"
+    var t = ((Math.round(minutes) % 1440) + 1440) % 1440;
+    var h = Math.floor(t / 60), m = t % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+
+  /* ---- ledger analysis ----
+   * entries: [{ date: "YYYY-MM-DD"|null, hours: number }] (<= 14, any order).
+   * need: nightly sleep need in hours.
+   * Running debt floor: debt can never go negative — surplus nights reduce
+   * debt but cannot push the balance below zero.
+   * Returns { rows, totalSlept, totalDeficit, totalSurplus, debt, avgSlept,
+   *           nightsLogged, nightsUnder }.
+   */
+  function analyzeLog(entries, need) {
+    var n = clampNeed(need);
+    var list = (entries || []).slice(0, 14);
+    var rows = [];
+    var running = 0;
+    var totalSlept = 0, totalDeficit = 0, totalSurplus = 0, nightsUnder = 0;
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i] || {};
+      var hours = clampHours(e.hours);
+      var delta = n - hours; // positive = deficit added, negative = surplus
+      if (delta > 0) { totalDeficit += delta; nightsUnder++; }
+      else { totalSurplus += -delta; }
+      running += delta;
+      if (running < 0) running = 0; // floor: debt never negative
+      running = Math.round(running * 100) / 100;
+      totalSlept = Math.round((totalSlept + hours) * 100) / 100;
+      rows.push({
+        index: i,
+        date: isIsoDate(e.date) ? e.date : null,
+        hours: hours,
+        delta: Math.round(delta * 100) / 100,
+        running: running,
+        under: delta > 0
+      });
+    }
+    totalDeficit = Math.round(totalDeficit * 100) / 100;
+    totalSurplus = Math.round(totalSurplus * 100) / 100;
+    return {
+      rows: rows,
+      need: n,
+      nightsLogged: rows.length,
+      nightsUnder: nightsUnder,
+      totalSlept: totalSlept,
+      avgSlept: rows.length ? Math.round(totalSlept / rows.length * 100) / 100 : 0,
+      totalDeficit: totalDeficit,
+      totalSurplus: totalSurplus,
+      debt: running // final running balance, always >= 0
+    };
+  }
+
+  /* ---- severity grading ---- */
+  // Thresholds are in cumulative debt hours. Labels deliberately simple;
+  // article carries the science nuance (Van Dongen 2003 etc.).
+  function severityGrade(debtHours) {
+    var d = num(debtHours, 0);
+    if (d < 0) d = 0;
+    if (d <= 0) {
+      return { key: 'rested', label: 'Rested', band: '0h',
+        advice: 'No outstanding debt. Keep wake times steady to stay in the green.' };
+    }
+    if (d < 7) {
+      return { key: 'mild', label: 'Mild debt', band: '< 7h',
+        advice: 'One lighter week. Add ~30 extra minutes a night for a week.' };
+    }
+    if (d < 14) {
+      return { key: 'moderate', label: 'Moderate debt', band: '7–14h',
+        advice: 'Noticeable impairment zone. Repay in nightly installments of up to 60 min.' };
+    }
+    if (d < 24) {
+      return { key: 'heavy', label: 'Heavy debt', band: '14–24h',
+        advice: 'Roughly 2–3 full nights owed. Multi-week plan, keep wake time fixed.' };
+    }
+    return { key: 'severe', label: 'Severe debt', band: '24h+',
+      advice: 'Over three full nights owed. Steady 60-min nightly installments; consider speaking to a sleep clinician.' };
+  }
+
+  /* ---- dated recovery plan ----
+   * Repays `debtHours` in nightly installments capped at maxExtraMin
+   * (default 60 — circadian-safe). Plan runs on consecutive calendar days
+   * from startISO. Weekend days carry the lie-in guardrail note.
+   * Sum of extraMin across the plan === round(debtHours * 60) exactly.
+   */
+  function recoveryPlan(debtHours, startISO, opts) {
+    opts = opts || {};
+    var maxExtraMin = Math.max(15, Math.min(120, Math.round(num(opts.maxExtraMin, 60))));
+    var d = num(debtHours, 0);
+    if (d <= 0 || !isIsoDate(startISO)) return { days: [], totalMin: 0, startISO: isIsoDate(startISO) ? startISO : null };
+
+    var remaining = Math.round(d * 60); // whole minutes owed
+    var days = [];
+    var cursor = startISO;
+    var guard = 0;
+    while (remaining > 0 && guard < 120) {
+      guard++;
+      var extra = Math.min(maxExtraMin, remaining);
+      var wknd = isWeekend(cursor);
+      days.push({
+        dateISO: cursor,
+        weekday: weekdayIndex(cursor),
+        weekend: wknd,
+        extraMin: extra,
+        // weekend lie-in guardrail: weekend installments stay at/inside the
+        // same circadian-safe cap so the weekend can't blow up the rhythm.
+        guardrail: wknd
+          ? 'Lie-in guardrail: capped at +' + extra + ' min — keep weekend wake within 1h of weekdays.'
+          : 'Protect your rhythm: shift bedtime earlier, keep wake time fixed.'
+      });
+      remaining -= extra;
+      cursor = isoDayAdd(cursor, 1);
+    }
+    var totalMin = 0;
+    for (var i = 0; i < days.length; i++) totalMin += days[i].extraMin;
+    return { days: days, totalMin: totalMin, startISO: startISO, maxExtraMin: maxExtraMin };
+  }
+
+  /* ---- nap planner ----
+   * Optimal nap window sits ~6–8h after wake (the post-lunch dip); naps must
+   * end early enough to not steal from the night — we cut off at the earlier
+   * of 15:30 and bedtime minus 6h.
+   */
+  function napPlan(wakeHHMM, bedHHMM) {
+    var wake = parseTimeHHMM(wakeHHMM);
+    var bed = parseTimeHHMM(bedHHMM);
+    if (isNaN(wake)) return { ok: false, reason: 'invalid-wake' };
+    if (isNaN(bed)) bed = (wake + 16 * 60) % 1440; // assume 16h wake window
+
+    var windowStart = (wake + 6 * 60) % 1440;
+    var windowEnd = (wake + 8 * 60) % 1440;
+    var latestOk = Math.min(15 * 60 + 30, (bed - 6 * 60 + 1440) % 1440);
+    // guard against pathological tiny windows
+    if ((latestOk - windowStart + 1440) % 1440 < 30) latestOk = (windowStart + 60) % 1440;
+
+    var durations = [
+      { min: 10, label: 'Micro nap', why: 'A quick alertness top-up with almost zero grogginess.' },
+      { min: 20, label: 'Power nap', why: 'The classic: clears adenosine, wakes before deep sleep begins.' },
+      { min: 90, label: 'Full cycle', why: 'One complete ~90-minute sleep cycle; wake at a natural boundary.' }
+    ];
+    return {
+      ok: true,
+      wake: fmtTime(wake),
+      bed: fmtTime(bed),
+      windowStart: fmtTime(windowStart),
+      windowEnd: fmtTime(windowEnd),
+      latestStart: fmtTime(latestOk),
+      durations: durations,
+      note: 'Set an alarm. Avoid naps longer than ~30 min unless you can finish a full 90-minute cycle — waking from deep sleep causes sleep inertia.'
+    };
+  }
+
+  /* ---- weekend lie-in guardrail ----
+   * Caps extra weekend sleep at +60 min versus the weekday wake time to
+   * protect circadian rhythm (prevents social jetlag).
+   */
+  function weekendGuardrail(usualWakeHHMM, weekendWakeHHMM) {
+    var usual = parseTimeHHMM(usualWakeHHMM);
+    var weekend = parseTimeHHMM(weekendWakeHHMM);
+    var CAP = 60;
+    if (isNaN(usual) || isNaN(weekend)) return { ok: false, reason: 'invalid-time' };
+    var extra = (weekend - usual + 1440) % 1440;
+    if (extra > 720) extra = extra - 1440; // handle overnight confusion -> negative
+    if (extra < 0) extra = 0; // waking earlier than usual: no extra
+    var within = extra <= CAP;
+    return {
+      ok: true,
+      usual: fmtTime(usual),
+      weekend: fmtTime(weekend),
+      extraMin: extra,
+      capMin: CAP,
+      within: within,
+      verdict: within
+        ? 'Guardrail OK: +' + extra + ' min stays inside the +60 min rhythm-safe limit.'
+        : 'Over the guardrail: +' + extra + ' min exceeds the +60 min limit. Set the alarm ' + (extra - CAP) + ' min earlier to protect your circadian rhythm.',
+      suggestion: within ? weekendWakeHHMM : fmtTime(usual + CAP)
+    };
+  }
+
+  /* ---- formatting ---- */
+  function formatDur(hours) { // 7.5 -> "7h 30m"
+    var h = num(hours, 0);
+    if (h < 0) h = 0;
+    var totalMin = Math.round(h * 60);
+    var hh = Math.floor(totalMin / 60);
+    var mm = totalMin % 60;
+    return hh + 'h ' + (mm < 10 ? '0' : '') + mm + 'm';
+  }
+
+  function signedDur(hours) { // -1.25 -> "-1h 15m"
+    var h = num(hours, 0);
+    var sign = h < 0 ? '-' : '+';
+    return sign + formatDur(Math.abs(h));
+  }
+
+  function weekdayName(iso) {
+    var names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    var w = weekdayIndex(iso);
+    return w >= 0 ? names[w] : '';
+  }
+
+  return {
+    clampNeed: clampNeed,
+    clampHours: clampHours,
+    isIsoDate: isIsoDate,
+    isoDayAdd: isoDayAdd,
+    weekdayIndex: weekdayIndex,
+    isWeekend: isWeekend,
+    parseTimeHHMM: parseTimeHHMM,
+    fmtTime: fmtTime,
+    analyzeLog: analyzeLog,
+    severityGrade: severityGrade,
+    recoveryPlan: recoveryPlan,
+    napPlan: napPlan,
+    weekendGuardrail: weekendGuardrail,
+    formatDur: formatDur,
+    signedDur: signedDur,
+    weekdayName: weekdayName
+  };
+})();
+
+</script>
+
+<!-- ============ SEO ARTICLE ============ -->
+<article class="max-w-4xl mx-auto px-4 sm:px-6 pt-8 pb-10" style="color:#C9CFEE">
+  <h2 class="text-3xl font-extrabold text-white mb-6">Sleep Debt Calculator: Understand, Measure, and Repay the Sleep You Owe Yourself</h2>
+
+  <h3 class="text-xl font-bold text-white mt-8 mb-3">What sleep debt actually is</h3>
+  <p class="mb-4 leading-relaxed">Sleep debt is the running total of the sleep you needed minus the sleep you actually got. If your body needs eight hours a night and you sleep six, you have added two hours to your ledger that day. Do that for a week and you owe yourself fourteen hours — nearly two full nights. A <strong>sleep debt calculator</strong> like the ledger above does nothing fancier than this accounting, but the accounting matters, because the brain keeps its own books whether you look at them or not.</p>
+  <p class="mb-4 leading-relaxed">The landmark evidence comes from a 2003 study at the University of Pennsylvania (Van Dongen and colleagues, published in the journal <em>Sleep</em>), which restricted volunteers to six hours a night for fourteen days. By the end, their cognitive performance had deteriorated to the equivalent of two full nights with zero sleep. The alarming part: the subjects themselves did not feel proportionally impaired. As sleep loss accumulates, our subjective sense of tiredness plateaus while objective performance keeps sliding. You adapt to feeling tired, but you do not adapt to being impaired. That is exactly why an external ledger — a written record instead of a gut feeling — is the honest way to track what you owe.</p>
+
+  <h3 class="text-xl font-bold text-white mt-8 mb-3">Can you really catch up on sleep?</h3>
+  <p class="mb-4 leading-relaxed">Yes — but not the way most people try. The popular strategy is the weekend marathon: survive on six hours all week, then sleep eleven hours on Saturday and call it even. Sleep researchers are blunt about this. Weekend catch-up sleep can take the edge off short-term fatigue, but it does not fully reverse the cognitive and metabolic effects of chronic restriction, and it introduces a second problem: <strong>social jetlag</strong>. Shifting your wake time by two or three hours on Saturday is, to your circadian clock, the same as flying two or three time zones west on Friday night and flying back on Monday morning. You repay the financial debt while taking out a new loan against your body clock.</p>
+  <p class="mb-4 leading-relaxed">There is also a subtler limit. Matthew Walker's widely cited summary of the evidence puts it this way: you can recover some of what you lost, but months and years of chronic deprivation cannot be fully unwound. Short-term debt — the kind a two-week ledger captures — is the kind you can genuinely repay. Long-standing chronic loss is best addressed by building a sustainable pattern going forward, not by chasing an ever-growing historical balance.</p>
+
+  <h3 class="text-xl font-bold text-white mt-8 mb-3">How to recover from sleep debt: the installment plan</h3>
+  <p class="mb-4 leading-relaxed">If you are wondering <strong>how to recover from sleep debt</strong> without wrecking your rhythm, the evidence-backed answer is boring and effective: repay in small nightly installments, and protect your wake time above all else.</p>
+  <p class="mb-4 leading-relaxed">The commonly cited rule of thumb, repeated by sleep clinicians including those at Harvard-affiliated sleep centers, is that one hour of lost sleep takes roughly four days of extra rest to make up — in other words, adding about fifteen extra minutes of sleep per night pays back an hour of debt in four days. More generally, experts recommend adding 30 to 60 minutes to your nightly sleep, every night, for as many weeks as it takes, rather than attempting a single giant catch-up. Go to bed earlier instead of waking up later, because a fixed wake time is the anchor that keeps your circadian rhythm from drifting.</p>
+  <p class="mb-4 leading-relaxed">This is precisely the logic the dated recovery plan generator above encodes. It takes your total debt and divides it into installments of up to 60 extra minutes per night on consecutive calendar dates, so you always know exactly which night owes how much. A debt of ten hours, for example, becomes ten nights of +60 minutes — or fewer, longer-repayment nights if you choose a gentler cap. The math is simple on purpose: the hard part of repaying sleep debt is not the arithmetic, it is the consistency, and a dated plan makes consistency checkable.</p>
+  <p class="mb-4 leading-relaxed">Two supporting habits multiply the effect. First, morning daylight: getting bright light within an hour of waking sets your internal clock and makes the earlier bedtime easier to keep. Second, a genuine wind-down — dim lights, no scrolling, a cool dark quiet room — because extra time in bed only repays debt if it becomes extra sleep. Keep the bedroom around 18–20°C (65–68°F), cut caffeine after early afternoon, and treat alcohol as the sleep-quality saboteur it is.</p>
+
+  <h3 class="text-xl font-bold text-white mt-8 mb-3">Naps: the strategic partial payment</h3>
+  <p class="mb-4 leading-relaxed">Naps count toward the ledger — sleep trackers like Oura's fold nap sleep into total sleep and readiness scores for exactly this reason — but not all naps are equal. The research consensus lands in a narrow band: 10 to 20 minutes, taken in the early afternoon (roughly 1–3 p.m.), delivers an alertness and mood boost with minimal risk of grogginess. Push past about 30 minutes and you begin descending into deep NREM sleep; being yanked out of it produces <strong>sleep inertia</strong>, the disoriented, heavier-than-before feeling that can linger for up to an hour. That is why the nap planner above offers three rungs — a 10-minute micro nap, the classic 20-minute power nap, and a full 90-minute cycle nap — and nothing in the groggy middle.</p>
+  <p class="mb-4 leading-relaxed">Timing matters as much as length. The natural dip in alertness falls about six to eight hours after waking, which is why the planner centers your window there, and why it cuts the window off no later than mid-afternoon (or at least six hours before bedtime): a 5 p.m. nap is a loan against tonight's sleep, and it will charge interest. Set an alarm before you close your eyes. The perfect nap is planned; the accidental three-hour nap is a small disaster wearing a blanket.</p>
+  <p class="mb-4 leading-relaxed">One honest caveat, echoed by sleep specialists: if you find you <em>need</em> a nap every single day, treat the nap as a symptom, not a solution. A daily nap habit is your ledger telling you the nighttime account is chronically underfunded. Fix the night first; use naps as the bridge.</p>
+
+  <h3 class="text-xl font-bold text-white mt-8 mb-3">The weekend lie-in guardrail, explained</h3>
+  <p class="mb-4 leading-relaxed">The guardrail tool on this page exists because of one of the most misunderstood findings in sleep science. A well-known Swedish study (Åkerstedt and colleagues) found that people who slept short on weeknights but caught up on weekends had lower mortality than those who stayed short all week — and headlines promptly declared weekend lie-ins healthy. What the headlines skipped: the weekend sleepers who did best still kept their schedules relatively consistent. Sleeping in by an hour is a gentle top-up; sleeping in by three hours is self-inflicted jetlag.</p>
+  <p class="mb-4 leading-relaxed">The practical rule used by sleep clinicians is simple: keep your weekend wake time within about one hour of your weekday wake time. That is the +60-minute cap the guardrail enforces. If your weekday alarm is 7:00 a.m., a weekend wake of 8:00 a.m. is rhythm-safe; 10:30 a.m. will make Monday morning feel like a red-eye flight. The tool tells you exactly where your planned lie-in lands and, if you are over, suggests the latest alarm that stays inside the safe band.</p>
+
+  <h3 class="text-xl font-bold text-white mt-8 mb-3">How to use this catch up on sleep calculator</h3>
+  <p class="mb-4 leading-relaxed">Using this <strong>catch up on sleep calculator</strong> takes about two minutes. First, set your nightly sleep need — most adults land between 7 and 9 hours; 8 is the standard default. Then fill in the last fourteen nights with your best estimate of hours slept. If you only remember roughly, rough is fine; the ledger is a diagnostic instrument, not a courtroom. Press "Balance the books" and you get three things: your total debt in hours and minutes, a severity grade from Rested to Severe, and the full ledger timeline showing each night's debit or credit against your running balance. Surplus nights (sleeping more than your need) reduce the balance, but the balance never goes below zero — you cannot bank sleep you have not yet lost, and "extra" sleep beyond a zero balance does not earn interest.</p>
+  <p class="mb-4 leading-relaxed">Next, generate your dated recovery plan. Pick a start date — tomorrow is ideal, since tonight you can already go to bed earlier — and the tool maps every installment to a calendar date, flagging weekends with the lie-in guardrail so your repayment never becomes a rhythm problem of its own. Finally, use the nap planner and the weekend guardrail as tactical support while the plan runs. Recalculate the ledger weekly; watching the balance fall to zero is one of the more motivating progress bars in health.</p>
+
+  <h3 class="text-xl font-bold text-white mt-8 mb-3">When the ledger says "severe" — and when to get help</h3>
+  <p class="mb-4 leading-relaxed">A Severe grade — more than about 24 hours of cumulative debt, the equivalent of three full missed nights — deserves respect. Multi-week repayment at 60 minutes a night is a long road, and if the debt keeps returning no matter what you try, the problem may not be discipline. Chronic insomnia, sleep apnea, restless legs, and shift-work sleep disorder all masquerade as "bad habits" while quietly compounding the balance. Snoring with gasping pauses, falling asleep unintentionally during the day, or lying awake for hours despite exhaustion are signals to talk to a clinician, not to a calculator.</p>
+
+  <h3 class="text-xl font-bold text-white mt-8 mb-3">Health disclaimer</h3>
+  <p class="mb-4 leading-relaxed">SleepLedger is an educational tracking tool, not a medical device, and nothing on this page is medical advice. The debt figures, severity grades, recovery plans, and nap windows are general-information estimates based on published sleep research; they do not diagnose, treat, or prevent any condition. Individual sleep needs vary with age, health, medication, pregnancy, and many other factors. If you have a sleep disorder, a medical condition, take medication that affects sleep, or experience persistent daytime sleepiness, please consult a qualified healthcare professional or a board-certified sleep specialist. Do not delay seeking care because of something you read on a calculator page. If you ever feel too drowsy to drive or operate machinery safely, stop and rest — no ledger is worth a crash.</p>
+</article>
+
+<!-- ============ FAQS ============ -->
+<section class="max-w-4xl mx-auto px-4 sm:px-6 pb-12">
+  <h2 class="text-2xl sm:text-3xl font-extrabold text-white mb-6">Frequently asked questions</h2>
+  <div class="space-y-3" id="faqs">
+    <details class="faq p-4">
+      <summary class="font-semibold text-white">Can you really catch up on lost sleep, or is the damage permanent?</summary>
+      <p class="mt-2 text-sm leading-relaxed" style="color:#C9CFEE">Short-term sleep debt can genuinely be repaid: adding 30–60 extra minutes of sleep per night over days or weeks restores most cognitive performance. What you cannot do is erase months or years of chronic deprivation with one giant catch-up weekend. The honest strategy is a dated installment plan — like the one this sleep debt calculator generates — plus a consistent wake time.</p>
+    </details>
+    <details class="faq p-4">
+      <summary class="font-semibold text-white">How long does it take to pay back sleep debt?</summary>
+      <p class="mt-2 text-sm leading-relaxed" style="color:#C9CFEE">A widely cited rule of thumb: one hour of lost sleep takes about four days of extra rest to repay — roughly 15 extra minutes of sleep per night per hour owed. So a 10-hour debt repaid at +60 minutes a night clears in about 10 days; at a gentler +30 minutes, about 20 days. Chronic debt built over months needs weeks to months of steady repayment.</p>
+    </details>
+    <details class="faq p-4">
+      <summary class="font-semibold text-white">Do naps count toward repaying sleep debt?</summary>
+      <p class="mt-2 text-sm leading-relaxed" style="color:#C9CFEE">Yes. Naps of 15 minutes or more add to your total sleep and chip away at the balance. The sweet spot is 10–20 minutes in the early afternoon (roughly 1–3 p.m.); longer than ~30 minutes risks waking from deep sleep with grogginess (sleep inertia). A nap is a bridge, though — if you need one daily, your nighttime sleep is the real problem to fix.</p>
+    </details>
+    <details class="faq p-4">
+      <summary class="font-semibold text-white">Is sleeping in on weekends a good way to recover?</summary>
+      <p class="mt-2 text-sm leading-relaxed" style="color:#C9CFEE">A little, but with a hard limit. Sleeping in up to about one hour past your weekday wake time is a rhythm-safe top-up. Beyond that you create social jetlag — a self-inflicted time-zone shift that makes Monday miserable. This page's weekend lie-in guardrail checks your planned wake time against the +60-minute cap and suggests a safer alarm if you are over.</p>
+    </details>
+    <details class="faq p-4">
+      <summary class="font-semibold text-white">How does this sleep debt calculator compute my debt?</summary>
+      <p class="mt-2 text-sm leading-relaxed" style="color:#C9CFEE">You set your nightly sleep need (default 8 hours) and log up to 14 nights of actual sleep. Each night's difference (need minus slept) is added to a running balance; nights you oversleep subtract from it. The balance is floored at zero — surplus cannot push you into "negative debt." The final balance is graded from Rested to Severe, and the recovery plan divides it into dated installments of up to +60 minutes per night.</p>
+    </details>
+    <details class="faq p-4">
+      <summary class="font-semibold text-white">What is the best time of day to nap?</summary>
+      <p class="mt-2 text-sm leading-relaxed" style="color:#C9CFEE">About 6–8 hours after you wake, which for most people lands between 1 p.m. and 3 p.m. — the natural post-lunch dip in alertness. Avoid starting naps after about 3:30 p.m. or within six hours of bedtime, since late naps steal from the night's sleep. Set an alarm every time; the perfect nap is a planned one.</p>
+    </details>
+  </div>
+</section>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Can you really catch up on lost sleep, or is the damage permanent?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Short-term sleep debt can genuinely be repaid: adding 30–60 extra minutes of sleep per night over days or weeks restores most cognitive performance. What you cannot do is erase months or years of chronic deprivation with one giant catch-up weekend. The honest strategy is a dated installment plan plus a consistent wake time." } },
+    { "@type": "Question", "name": "How long does it take to pay back sleep debt?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A widely cited rule of thumb: one hour of lost sleep takes about four days of extra rest to repay — roughly 15 extra minutes of sleep per night per hour owed. A 10-hour debt repaid at +60 minutes a night clears in about 10 days; at +30 minutes, about 20 days." } },
+    { "@type": "Question", "name": "Do naps count toward repaying sleep debt?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Naps of 15 minutes or more add to total sleep and chip away at the balance. The sweet spot is 10–20 minutes in the early afternoon; longer than about 30 minutes risks sleep inertia. If you need a nap daily, your nighttime sleep is the real problem to fix." } },
+    { "@type": "Question", "name": "Is sleeping in on weekends a good way to recover?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A little, with a hard limit: sleeping in up to about one hour past your weekday wake time is rhythm-safe. Beyond that you create social jetlag. Use a weekend lie-in guardrail that caps extra sleep at +60 minutes past your weekday wake time." } },
+    { "@type": "Question", "name": "How does this sleep debt calculator compute my debt?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Set your nightly sleep need and log up to 14 nights of actual sleep. Each night's difference (need minus slept) joins a running balance floored at zero; oversleeping subtracts. The final balance is graded from Rested to Severe, and the recovery plan divides it into dated installments of up to +60 minutes per night." } },
+    { "@type": "Question", "name": "What is the best time of day to nap?",
+      "acceptedAnswer": { "@type": "Answer", "text": "About 6–8 hours after you wake, typically between 1 p.m. and 3 p.m. Avoid starting naps after about 3:30 p.m. or within six hours of bedtime. Set an alarm every time." } }
+  ]
+}
+</script>
+
+<footer class="border-t mt-4" style="border-color:var(--line)">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+    <span class="text-sm" style="color:var(--mut)">© 2026 SleepLedger — balance your rest.</span>
+    <nav class="flex items-center gap-5 text-sm">
+      <a href="#top" class="hover:text-white" style="color:var(--mut)">Home</a>
+      <a href="https://fixoraa.tech" class="hover:text-white" style="color:var(--mut)">More Tools</a>
+    </nav>
+  </div>
+</footer>
+
+<!-- ============ APP WIRING (DOM only; logic lives in the lib above) ============ -->
+<script>
+(function () {
+  'use strict';
+  var L = SleepDebtLogic;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var LS_KEY = 'sleepledger-v1';
+
+  function todayISO() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  /* ---- build the 14 log rows (last 14 days, ending today) ---- */
+  var logGrid = $('sl-log-grid');
+  var inputs = [];
+  var today = todayISO();
+  for (var i = 13; i >= 0; i--) {
+    (function (idx) {
+      var iso = L.isoDayAdd(today, -(13 - idx));
+      var row = document.createElement('div');
+      row.className = 'ledger-row grid grid-cols-[1fr_110px] items-center gap-3 py-2.5';
+      var wd = L.weekdayName(iso);
+      var label = document.createElement('label');
+      label.setAttribute('for', 'sl-h-' + idx);
+      label.className = 'text-sm';
+      label.innerHTML = '<span class="mono text-xs" style="color:var(--mut)">' + iso + '</span><br><span class="font-semibold text-white">' + wd + '</span>' + (idx === 13 ? ' <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(129,140,248,.15);color:var(--ind)">today</span>' : '');
+      var inp = document.createElement('input');
+      inp.id = 'sl-h-' + idx;
+      inp.type = 'number';
+      inp.min = '0'; inp.max = '16'; inp.step = '0.25';
+      inp.placeholder = 'h';
+      inp.className = 'field mono w-full px-3 py-2 text-right';
+      inp.setAttribute('aria-label', 'Hours slept on ' + iso);
+      row.appendChild(label);
+      row.appendChild(inp);
+      logGrid.appendChild(row);
+      inputs.push({ iso: iso, el: inp });
+    })(13 - i);
+  }
+
+  function readEntries() {
+    return inputs.map(function (r) {
+      return { date: r.iso, hours: r.el.value === '' ? NaN : parseFloat(r.el.value) };
+    });
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        need: $('sl-need').value,
+        hours: inputs.map(function (r) { return r.el.value; })
+      }));
+    } catch (e) {}
+  }
+
+  function loadState() {
+    try {
+      var s = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      if (!s) return;
+      if (s.need) $('sl-need').value = s.need;
+      (s.hours || []).forEach(function (v, i) { if (inputs[i]) inputs[i].el.value = v || ''; });
+    } catch (e) {}
+  }
+
+  /* ---- analyze ---- */
+  function analyze() {
+    var need = L.clampNeed(parseFloat($('sl-need').value));
+    $('sl-need').value = need;
+    var entries = readEntries();
+    var r = L.analyzeLog(entries, need);
+    var g = L.severityGrade(r.debt);
+
+    $('sl-results').classList.remove('hidden');
+    $('sl-debt').textContent = L.formatDur(r.debt);
+    var gradeEl = $('sl-grade');
+    gradeEl.textContent = g.label;
+    gradeEl.className = 'seal stamp-' + g.key + ' mono text-lg font-bold px-4 py-1.5 uppercase';
+    $('sl-avg').textContent = L.formatDur(r.avgSlept);
+    $('sl-nights').textContent = r.nightsLogged + ' nights logged · ' + r.nightsUnder + ' under need';
+    $('sl-grade-advice').innerHTML = '<strong style="color:var(--amb)">Ledger verdict:</strong> ' + g.advice +
+      ' <span class="mono text-xs" style="color:var(--mut)">(total shortfall ' + L.formatDur(r.totalDeficit) + ' · surplus ' + L.formatDur(r.totalSurplus) + ')</span>';
+
+    var tl = $('sl-timeline');
+    tl.innerHTML = '';
+    r.rows.forEach(function (row) {
+      var div = document.createElement('div');
+      div.className = 'ledger-row grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] gap-2 px-3 sm:px-4 py-2 mono text-sm';
+      var deltaCls = row.delta > 0 ? 'delta-neg' : (row.delta < 0 ? 'delta-pos' : '');
+      var balColor = row.running > 0 ? 'var(--amb)' : 'var(--mut)';
+      div.innerHTML =
+        '<span><span class="text-xs" style="color:var(--mut)">' + (row.date || '—') + '</span></span>' +
+        '<span class="text-right text-white">' + L.formatDur(row.hours) + '</span>' +
+        '<span class="text-right hidden sm:block" style="color:var(--mut)">' + L.formatDur(r.need) + '</span>' +
+        '<span class="text-right ' + deltaCls + '">' + L.signedDur(-row.delta) + '</span>' +
+        '<span class="text-right font-bold" style="color:' + balColor + '">' + L.formatDur(row.running) + '</span>';
+      tl.appendChild(div);
+    });
+
+    saveState();
+    // stash current debt for the plan generator
+    $('sl-plan-out').dataset.debt = r.debt;
+    $('sl-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  $('sl-analyze').addEventListener('click', analyze);
+
+  $('sl-sample').addEventListener('click', function () {
+    var sample = [6.5, 5.75, 7, 6, 8.5, 6.25, 5.5, 7.5, 6.75, 6, 9, 7.25, 6.5, 7];
+    inputs.forEach(function (r, i) { r.el.value = sample[i]; });
+    $('sl-need').value = 8;
+    analyze();
+  });
+
+  $('sl-clear').addEventListener('click', function () {
+    inputs.forEach(function (r) { r.el.value = ''; });
+    $('sl-results').classList.add('hidden');
+    $('sl-plan-out').innerHTML = '';
+    try { localStorage.removeItem(LS_KEY); } catch (e) {}
+  });
+
+  /* ---- recovery plan ---- */
+  $('sl-plan-start').value = L.isoDayAdd(today, 1);
+  $('sl-plan-btn').addEventListener('click', function () {
+    var out = $('sl-plan-out');
+    var debt = parseFloat(out.dataset.debt || '0');
+    if (!(debt > 0)) {
+      out.innerHTML = '<div class="rounded-xl px-4 py-4 text-sm" style="background:rgba(252,211,77,.08);border:1px solid var(--amb);color:var(--txt)">⚖️ Balance the books first — the plan needs your current debt. A zero balance means no repayment is due. Well rested!</div>';
+      return;
+    }
+    var start = $('sl-plan-start').value || L.isoDayAdd(today, 1);
+    var cap = Math.max(15, Math.min(120, parseInt($('sl-plan-cap').value, 10) || 60));
+    var plan = L.recoveryPlan(debt, start, { maxExtraMin: cap });
+    var html = '<div class="rounded-xl px-4 py-3 mb-4 text-sm" style="background:rgba(129,140,248,.08);border:1px solid var(--line)">Repaying <strong class="mono" style="color:var(--amb)">' + L.formatDur(debt) + '</strong> over <strong class="mono">' + plan.days.length + ' nights</strong> · up to +' + plan.maxExtraMin + ' min/night.</div>';
+    plan.days.forEach(function (d, i) {
+      var isWk = d.weekend;
+      html += '<div class="plan-line flex gap-4 pb-5">' +
+        '<div class="shrink-0 w-6 h-6 rounded-full mt-1 flex items-center justify-center text-xs font-bold" style="background:' + (isWk ? 'var(--amb)' : 'var(--ind)') + ';color:#0A0E1F">' + (i + 1) + '</div>' +
+        '<div class="flex-1 rounded-xl px-4 py-3" style="background:#0C1230;border:1px solid var(--line)">' +
+          '<div class="flex flex-wrap items-center justify-between gap-2">' +
+            '<div><span class="font-bold text-white">' + L.weekdayName(d.dateISO) + '</span> <span class="mono text-xs" style="color:var(--mut)">' + d.dateISO + '</span>' +
+            (isWk ? ' <span class="text-xs px-2 py-0.5 rounded-full ml-1" style="background:rgba(252,211,77,.14);color:var(--amb)">weekend</span>' : '') + '</div>' +
+            '<div class="mono font-bold" style="color:' + (isWk ? 'var(--amb)' : 'var(--ind)') + '">+' + d.extraMin + ' min</div>' +
+          '</div>' +
+          '<p class="text-xs mt-1.5" style="color:var(--mut)">' + d.guardrail + '</p>' +
+        '</div></div>';
+    });
+    html += '<p class="text-xs mono" style="color:var(--mut)">✓ Installment total: ' + L.formatDur(plan.totalMin / 60) + ' = debt ' + L.formatDur(debt) + ' — books balance.</p>';
+    out.innerHTML = html;
+    out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  /* ---- nap planner ---- */
+  $('sl-nap-btn').addEventListener('click', function () {
+    var out = $('sl-nap-out');
+    var p = L.napPlan($('sl-nap-wake').value, $('sl-nap-bed').value);
+    if (!p.ok) {
+      out.innerHTML = '<div class="rounded-xl px-4 py-3 text-sm" style="border:1px solid var(--amb);color:var(--txt)">Please enter a valid wake time.</div>';
+      return;
+    }
+    var html = '<div class="rounded-xl px-4 py-3 mb-3 text-sm" style="background:rgba(129,140,248,.08);border:1px solid var(--line)">' +
+      'Optimal window: <strong class="mono" style="color:var(--ind)">' + p.windowStart + ' – ' + p.windowEnd + '</strong><br>' +
+      '<span class="text-xs" style="color:var(--mut)">Start no later than ' + p.latestStart + ' so tonight\'s sleep stays protected.</span></div>';
+    p.durations.forEach(function (d) {
+      html += '<div class="rounded-xl px-4 py-3 mb-2 flex items-center justify-between gap-3" style="background:#0C1230;border:1px solid var(--line)">' +
+        '<div><div class="font-bold text-white">' + d.label + '</div><div class="text-xs" style="color:var(--mut)">' + d.why + '</div></div>' +
+        '<div class="mono font-bold text-lg shrink-0" style="color:var(--amb)">' + d.min + 'm</div></div>';
+    });
+    html += '<p class="text-xs mt-2" style="color:var(--mut)">' + p.note + '</p>';
+    out.innerHTML = html;
+  });
+
+  /* ---- weekend guardrail ---- */
+  $('sl-g-btn').addEventListener('click', function () {
+    var out = $('sl-g-out');
+    var g = L.weekendGuardrail($('sl-g-usual').value, $('sl-g-weekend').value);
+    if (!g.ok) {
+      out.innerHTML = '<div class="rounded-xl px-4 py-3 text-sm" style="border:1px solid var(--amb);color:var(--txt)">Please enter both wake times.</div>';
+      return;
+    }
+    out.innerHTML = '<div class="rounded-xl px-4 py-4" style="background:' + (g.within ? 'rgba(167,243,208,.07)' : 'rgba(248,113,113,.07)') + ';border:1px solid ' + (g.within ? '#A7F3D0' : '#F87171') + '">' +
+      '<div class="flex items-center justify-between mb-1"><span class="font-bold text-white">' + (g.within ? '✅ Within guardrail' : '⚠️ Over the guardrail') + '</span>' +
+      '<span class="mono font-bold" style="color:' + (g.within ? '#A7F3D0' : '#F87171') + '">+' + g.extraMin + ' min</span></div>' +
+      '<p class="text-sm" style="color:var(--txt)">' + g.verdict + '</p>' +
+      (g.within ? '' : '<p class="text-xs mt-2" style="color:var(--mut)">Safer weekend wake: <strong class="mono" style="color:var(--amb)">' + g.suggestion + '</strong></p>') +
+      '</div>';
+  });
+
+  loadState();
+})();
+</script>
+</body>
+</html>
